@@ -1,40 +1,47 @@
 const express = require("express");
-const mongoose = require("mongoose");
-const shoppingRoute = require("./routes/shoppingroute");
-const bcrypt = require("bcrypt");
+const shoppingroute = require("./routes/shoppingroute");
 const crypto = require("crypto");
+const bcrypt = require("bcrypt");
+const mongoose = require("mongoose");
 const userModel = require("./models/user");
 const sessionModel = require("./models/session");
 
 let app = express();
 
+//BODYPARSER JSON
+
 app.use(express.json());
 
+let port = process.env.PORT || 3001;
+
 app.use("/",express.static("public"));
+
+//MONGOOSE CONNECTION
 
 const mongo_url = process.env.MONGODB_URL;
 const mongo_user = process.env.MONGODB_USER;
 const mongo_password = process.env.MONGODB_PASSWORD;
 
-let port = process.env.PORT || 3001
-
-const url = "mongodb+srv://"+mongo_user+":"+mongo_password+"@"+mongo_url+"/shoppingdatabase?retryWrites=true&w=majority";
+const url = "mongodb+srv://"+mongo_user+":"+mongo_password+"@"+mongo_url+"/shoppingdatabase?retryWrites=true&w=majority"
 
 mongoose.connect(url).then(
-	() => console.log("Connected to MongoDB"),
-	(error) => console.log("Failed to connect to MongoDB. Reason",error)
+() => console.log("Connected to Mongo Atlas"),
+(error) => console.log("Failed to connect to Mongo Atlas. Reason",error)
 )
 
-//MIDDLEWARES
+mongoose.set("toJSON",{virtuals:true});
 
-const time_to_live_diff = 3600000
+//LOGIN DATABASES
+const time_to_live_diff = 3600000;
 
-createToken = () => {
+//LOGIN MIDDLEWARES
+
+const createToken = () => {
 	let token = crypto.randomBytes(64);
 	return token.toString("hex");
 }
 
-isUserLogged = (req,res,next) => {
+const isUserLogged = (req,res,next) => {
 	if(!req.headers.token) {
 		return res.status(403).json({"Message":"Forbidden"});
 	}
@@ -45,10 +52,10 @@ isUserLogged = (req,res,next) => {
 		let now = Date.now();
 		if(now > session.ttl) {
 			sessionModel.deleteOne({"_id":session._id}).then(function() {
-				return res.status(403).json({"Message":"Forbidden"});
-			}).catch(function(err) {
-				console.log(err);
-				return res.status(403).json({"Message":"Forbidden"});
+				return res.status(403).json({"Message":"Forbidden"})
+			}).catch(function(error) {
+				console.log("Failed to remove session. Reason",error);
+				return res.status(403).json({"Message":"Forbidden"})
 			})
 		} else {
 			session.ttl = now + time_to_live_diff;
@@ -56,15 +63,15 @@ isUserLogged = (req,res,next) => {
 			req.session.user = session.user;
 			session.save().then(function() {
 				return next();
-			}).catch(function(err) {
-				console.log(err);
+			}).catch(function(error) {
+				console.log("Failed to resave session. Reason",error);
 				return next();
 			})
 		}
-	}).catch(function(err) {
-		console.log(err);
-		return res.status(403).json({"Message":"Forbidden"});
-	});
+	}).catch(function(error){
+		console.log("Failed to find session. Reason",error);
+		return res.status(403).json({"Message":"Forbidden"})
+	})
 }
 
 //LOGIN API
@@ -82,21 +89,20 @@ app.post("/register",function(req,res) {
 	bcrypt.hash(req.body.password,14,function(err,hash) {
 		if(err) {
 			console.log(err);
-			return res.status(500).json({"Message":"Internal server error"});
+			return res.status(500).json({"Message":"Internal server error"})
 		}
 		let user = new userModel({
-			"username":req.body.username,
-			"password":hash
+			username:req.body.username,
+			password:hash
 		})
 		user.save().then(function(user) {
-			return res.status(200).json({"Message":"Register success"});
+			return res.status(201).json({"Message":"Register success"})
 		}).catch(function(err) {
 			if(err.code === 11000) {
-				return res.status(409).json({"Message":"Username is already in use"});
+				return res.status(409).json({"Message":"Username already in use"})
 			}
-			console.log(err);
-			return res.status(500).json({"Message":"Internal server error"});
-		});
+			return res.status(500).json({"Message":"Internal Server Error"})
+		})
 	})
 })
 
@@ -117,28 +123,28 @@ app.post("/login",function(req,res) {
 		bcrypt.compare(req.body.password,user.password,function(err,success) {
 			if(err) {
 				console.log(err);
-				return res.status(500).json({"Message":"Internal Server Error"});
+				return res.status(500).json({"Message":"Internal server error"});
 			}
 			if(!success) {
-				return res.status(401).json({"Message":"Unauthorized"}); 
+				return res.status(401).json({"Message":"Unauthorized"});
 			}
 			let token = createToken();
 			let now = Date.now();
 			let session = new sessionModel({
+				"token":token,
 				"user":req.body.username,
-				"ttl":now+time_to_live_diff,
-				"token":token
+				"ttl":now+time_to_live_diff
 			})
-			session.save().then(function(session) {
-				return res.status(200).json({"token":token})
-			}).catch(function(err) {
-				console.log(err);
+			session.save().then(function() {
+				return res.status(200).json({"token":token});
+			}).catch(function(error) {
+				console.log(error);
 				return res.status(500).json({"Message":"Internal Server Error"});
-			})
+			});
 		})
-	}).catch(function(err) {
-		console.log(err);
-		return res.status(500).json({"Message":"Internal Server Error"});
+	}).catch(function(error) {
+		console.log(error);
+		return res.status(500).json({"Message":"Internal Server Error"})
 	})
 })
 
@@ -147,14 +153,15 @@ app.post("/logout",function(req,res) {
 		return res.status(404).json({"Message":"Not found"});
 	}
 	sessionModel.deleteOne({"token":req.headers.token}).then(function() {
-		return res.status(200).json({"Message":"Logged out"});
-	}).catch(function(err) {
-		console.log(err);
+		return res.status(200).json({"Message":"Logged out"})
+	}).catch(function(error) {
+		console.log("Failed to remove session in logout. Reason",error);
 		return res.status(500).json({"Message":"Internal Server Error"});
 	})
-});
+})
 
-app.use("/api",isUserLogged,shoppingRoute);
+app.use("/api",isUserLogged,shoppingroute);
+
+console.log("Running in port",port);
 
 app.listen(port);
-console.log("Running in port",port);

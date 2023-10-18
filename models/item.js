@@ -7,4 +7,8 @@ let Schema = mongoose.Schema({
 	price:Number
 })
 
+Schema.virtual("id").get(function() {
+	return this._id
+})
+
 module.exports = mongoose.model("Item",Schema);
