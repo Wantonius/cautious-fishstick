@@ -14,6 +14,7 @@ app.use(express.json());
 
 let port = process.env.PORT || 3001;
 
+
 app.use("/",express.static("public"));
 
 //MONGOOSE CONNECTION
