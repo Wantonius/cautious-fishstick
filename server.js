@@ -16,6 +16,8 @@ const url = "mongodb+srv://"+mongo_user+":"+mongo_password+"@"+mongo_url+"/shopp
 
 app.use("/",express.static("public"));
 
+//MOI
+
 app.use(express.json());
 
 mongoose.connect(url).then(
