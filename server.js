@@ -7,7 +7,7 @@ const userModel = require("./models/user");
 const sessionModel = require("./models/session");
 
 let app = express();
-
+//MOI
 const mongo_url = process.env.MONGODB_URL;
 const mongo_user = process.env.MONGODB_USER;
 const mongo_password = process.env.MONGODB_PASSWORD;
